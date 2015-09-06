@@ -1,0 +1,262 @@
+﻿/**
+ * @fileoverview Marker Manager 标注管理器
+ * 主入口类是<a href="symbols/TELDBMapLib.MarkerManager.html">MarkerManager</a>，
+ * 对应大量的Marker定时刷新的问题
+ * @author TELD 前端 Group
+ * @version 1.0
+ */
+/**
+ * 常量 默认最大显示Marker数
+ */
+var TELDConst = (function(){
+        var MAX_MARKER_CNT = 250;
+        var DEFALT_PADDIG =  200;
+        var CONST_RET_DATA = {};
+        CONST_RET_DATA.getMAX_MARKER_CNT = function(){
+            return MAX_MARKER_CNT;
+        }
+        CONST_RET_DATA.getDEFAULT_PADDING = function(){
+            return DEFALT_PADDIG;
+        }
+        return CONST_RET_DATA;
+ })();
+/**
+ * @namespace BMap的所有library类均放在TELDBMapLib命名空间下
+ */
+var TELDBMapLib = window.TELDBMapLib = TELDBMapLib || {};
+(function () {
+    var T,
+    baidu = T = baidu || {version: "1.0"};
+    baidu.guid = "$BAIDU$";
+    (function(){
+        window[baidu.guid] = window[baidu.guid] || {};
+        baidu.object = baidu.object || {};
+        baidu.extend =
+        baidu.object.extend = function (target, source) {
+            for (var p in source) {
+                if (source.hasOwnProperty(p)) {
+                    target[p] = source[p];
+                }
+            }
+
+            return target;
+        };
+        T.undope=true;
+    })();
+    /**
+     * @exports MarkerManager as TELDBMapLib.MarkerManager
+     */
+
+    var MarkerManager =
+    /**
+     * MarkerManger类的构造函数
+     * @class MarkerManager <b>入口</b>。
+     * 请注意，此类比较适用于以下情况：
+     * @constructor
+     * @param {Map} map Baidu map的实例对象.
+     * @param {Json Object} opts 可选的输入参数，非必填项。可输入选项包括：<br />
+     * <br />"<b>maxCnt</b>" : {Number} 设置需要marker manager需要监视的最大的Marker数量，如果没有给出，默认为默认的最大数量。.
+     * <br />
+     * }<br />.
+     * @example <b>参考示例：</b><br />
+     * var mgr = new TELDBMapLib.MarkerManager(map,{maxCnt: 11});
+     */
+    TELDBMapLib.MarkerManager = function (map, opts) {
+         this._opts = opts || {};
+         this._map = map;
+         //用于存放添加的marker数组
+         this._numMarkers = [];
+               // 用于存放的位置信息
+         this._numPositions = [];
+         this._posLength = 0;
+         this._opts = new Object();
+        if(opts != null && typeof(opts) != "undefined"){
+            if(typeof opts.maxCnt === 'number'){
+                this._opts._maxcount = opts.maxCnt;
+            }
+            if(typeof opts.borderPadding === 'number'){
+                this._opts.borderPadding = opts.borderPadding;
+            }
+            
+        }
+        if(!("_maxcount" in this._opts)){
+            this._opts._maxcount  = TELDConst.getMAX_MARKER_CNT();
+        }
+        if(!("borderPadding" in this._opts)){
+            this._opts.borderPadding = TELDConst.getDEFAULT_PADDING();
+        }
+    }
+    /**
+     * 添加单个地图点数据(百度坐标）
+     * @param  {Json Object} posInfo
+     * <br />"<b>position</b>" : {BMap.Poin} 当前Mark坐标，BAIDU坐标
+     * <br />"<b>infoWindow</b>" : { BMap.InfoWindow} 设置InfoWindow
+     * <br />"<b>icon</b>" : { BMap.icon} 设置icon
+     * <br />"<b>addInfo</b>" : 任意设置addInfo
+     */
+    MarkerManager.prototype.addMapPoints = function (posInfo) {
+        this._posLength ++;
+        if(this._posLength >=  this._numPositions.length){
+            this._numPositions.push(posInfo);
+        }else{
+            this._clonePosition(this._numPositions[this._posLength],posInfo);
+        }
+    }
+    /**
+     * 添加单个地图点数据(GPS)
+     * @param  {Json Object} posInfo
+     * <br />"<b>gpsPos</b>" : GPS 坐标，BAIDU坐标
+     * <br />"<b>infoWindow</b>" : { BMap.InfoWindow} 设置InfoWindow
+     * <br />"<b>icon</b>" : { BMap.icon} 设置icon
+     * <br />"<b>addInfo</b>" : 任意设置addInfo
+     */
+    MarkerManager.prototype.addMapGPSPoints = function (posInfo) {
+        var arr1 = GPS.gcj_exncrypt(posInfo.gpsPos.Latitude, posInfo.gpsPos.Longitude);
+        var arr2 = GPS.bd_encrypt(arr1['lat'], arr1['lon']);
+
+        posInfo.position  = new BMap.Point(arr2['lon'], arr2['lat']);
+        this._posLength ++;
+        if(this._posLength >=  this._numPositions.length){
+            this._numPositions.push(posInfo);
+        }else{
+            this._clonePosition(this._numPositions[this._posLength],posInfo);
+        }
+    }
+    /**
+     * 清空所有显示的Marker
+     */
+    MarkerManager.prototype.clearAll = function () {
+        this._posLength = 0;
+        for(var i = 0; i < this._numMarkers.length;i++){
+            if(this._numMarkers[i].isAdded){
+               // map.removeOverlay(this._numMarkers[i]);
+                this._numMarkers[i].hide();
+            }
+            this._numMarkers[i].displayFlg = false;
+        }
+    }
+    /**
+     * 刷新标志
+     */
+    MarkerManager.prototype.refreshMarker = function () {
+      var me = this;
+      var needAdd = false;
+      for (var i = 0; i < this._posLength; i++) {
+           needAdd = false;
+           var marker = null;
+           if(this._numMarkers.length <= i){
+             marker = new BMap.Marker(this._numPositions[i].position);
+             needAdd = true;
+           }else{
+             marker = this._numMarkers[i];
+             marker.getPosition().lng = this._numPositions[i].position.lng;
+             marker.getPosition().lat = this._numPositions[i].position.lat;
+           }
+           marker.posIndex = i;
+           marker.displayFlg = true;
+           if(needAdd){
+               marker.isAdded = false;
+               this._numMarkers.push(marker);
+           }
+           if(this._numPositions[i].icon != null){
+               //this._numMarkers[i].getIcon().setImageUrl(this._numPositions[i].icon.imageUrl); 
+               if(marker.getIcon().imageUrl != this._numPositions[i].icon.imageUrl){
+                   marker.setIcon(this._numPositions[i].icon);
+               }
+           }else{
+              marker.setIcon(null);
+           }
+           
+           if(me._numPositions[i].infoWindow != null && typeof(me._numPositions[i].infoWindow) != "undefined"){
+               marker._tlCanClick = true;
+               if(!this._numMarkers[i].bindClick){
+                   this._numMarkers[i].bindClick = true;
+                   (function(){
+                    var index = i;
+                    me._numMarkers[index].addEventListener("click",  function () {
+                       if(me._numMarkers[index]._tlCanClick){
+                           map.openInfoWindow(me._numPositions[index].infoWindow, me._numPositions[index].position);
+                       }
+                    });
+                  })();
+               }
+           }else{
+               marker._tlCanClick = false;
+           } 
+      }
+      this.show();
+    }
+    /**
+     * 显示标志
+     */
+    MarkerManager.prototype.show = function () {
+        for (var i = 0; i < this._numMarkers.length; i++) {
+             if(this._numMarkers[i].displayFlg){
+                if(!this._numMarkers[i].isAdded){
+                   map.addOverlay(this._numMarkers[i]);
+                }else{
+                   this._numMarkers[i].show();
+                }
+                this._numMarkers[i].isAdded = true;
+             }
+        }
+    }
+    /**
+     * 取得符合条件的Marker
+     */
+    MarkerManager.prototype.MarkersByCondition = function (judageFunc) {
+        var retMarkers = new Array();
+        for (i = 0; i < this._posLength; i++) {
+            if(judageFunc(this._numMarkers[i])){
+                retMarkers.push(this._numMarkers[i]);
+            }
+        }
+        return retMarkers;
+    }
+   /**
+     * 取得所有的Marker
+     */
+    MarkerManager.prototype.Markers = function () {
+        var retMarkers = new Array();
+        for (i = 0; i < this._posLength; i++) {
+            retMarkers.push(this._numMarkers[i]);
+        }
+        return retMarkers;
+    }
+    /**
+    * 得到实际的bound范围
+    * @return none
+    */
+    MarkerManager.prototype.getRealBounds = function () {
+        var curBounds = this._map.getBounds(),
+        southWest = this._map.pointToPixel(curBounds.getSouthWest()),
+        northEast = this._map.pointToPixel(curBounds.getNorthEast()),
+        extendSW = {
+            x: southWest.x - this._opts.borderPadding,
+            y: southWest.y + this._opts.borderPadding
+        },
+        extendNE = {
+           x: northEast.x + this._opts.borderPadding,
+           y: northEast.y - this._opts.borderPadding
+        },
+        extendSwPoint = this._map.pixelToPoint(extendSW),
+        extendNePoint = this._map.pixelToPoint(extendNE);
+        return new BMap.Bounds(extendSwPoint, extendNePoint);
+    }
+    baidu.object.extend(MarkerManager.prototype, {
+        _clonePosition: function (destMarker, srcMarker) {
+            destMarker.position.lat = srcMarker.position.lat;
+            destMarker.position.lng = srcMarker.position.lng;
+            if(typeof(srcMarker.icon) != "undefined" && srcMarker.icon != destMarker.icon){
+                destMarker.icon  = srcMarker.icon;
+            }
+            if(typeof(srcMarker.infoWindow) != "undefined"){
+                destMarker.infoWindow = srcMarker.infoWindow;
+            }else{
+                destMarker.infoWindow = null;
+            }
+            destMarker.addInfo = srcMarker.addInfo;
+        },
+    });
+})();
+

@@ -1,0 +1,85 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+   <script src="http://api.map.baidu.com/api?v=1.5&ak=Fr57UONMXmGi0KpXFlDFTGUI"></script>
+  <script src="../commonjs/jquery-2.1.4.js"></script>
+ <script src="teld-BaiduMap.lib.js"></script>
+
+
+<title></title>
+</head>
+<body>
+	<div style="width:550px;height:450px;border:1px solid gray;" id="container"></div>
+	<button id="clearMarkers">clearMarkers</button>
+	<button id="show">show markers</button>
+	<button id="hide">hide markers</button>
+	<button id="toggle">toggle markers</button>
+<script type="text/javascript">
+    var map = new BMap.Map("container");
+    var point = new BMap.Point(116.404, 39.915);
+	map.centerAndZoom(point,15);
+	map.enableScrollWheelZoom();
+    map.enableScrollWheelZoom();
+    var iconCar = new BMap.Icon("icon_01.png", new BMap.Size(16, 16));  
+    var iconCarStop = new BMap.Icon("icon_02.png", new BMap.Size(16, 16));  
+  $(function(){
+    mgr = new TELDBMapLib.MarkerManager(map);
+    createMarker();
+    window.setInterval("createMarker()", 10000);
+  });
+  var runTime = 0;
+  function createMarker(){
+   runTime ++;
+   mgr.clearAll();
+   var pos = getRandomPosition(map, 100, 200);
+   for (var i = 0; i < pos.length; i++) {
+          var positionInfo = new Object();
+          positionInfo.position = pos[i];
+          if(Math.random() > 0.5){
+             positionInfo.icon = iconCar;
+          }else{
+             positionInfo.icon = iconCarStop;
+          }
+          var sContent =
+                                "<div>" +
+                                "TEST　WINDOS"+ runTime + "<br>" + "index =" + i;
+                                "</div>";
+            var opts = {
+                 enableMessage: false  //设置允许信息窗发送短息
+            }
+          var infoWindow = new BMap.InfoWindow(sContent, opts);
+          positionInfo.infoWindow = infoWindow;
+          mgr.addMapPoints(positionInfo);
+          positionInfo = null;
+          infoWindow = null;
+    }
+    pos = null;
+    mgr.refreshMarker();
+  }
+  function getRandomPosition(map,num,borderPadding){
+		var container = map.getContainer()
+		, positions = []
+		, height = parseInt(container.offsetHeight,10) / 2  + borderPadding
+		, width = parseInt(container.offsetWidth,10) / 2  + borderPadding;
+
+		var center = map.getCenter(), pixel = map.pointToPixel(center);
+		var realBounds = mgr.getRealBounds();
+		//随机一个新的坐标，不超过地图+borderPadding范围
+		for(var i = num; i--;){
+			var w = width * Math.random(), h = height * Math.random();
+			var newPixel = { x : pixel.x + (Math.random() > 0.5 ? w : -w),
+						   y : pixel.y + (Math.random() > 0.5 ? h : -h)}
+			, newPoint = map.pixelToPoint(newPixel);
+			if(realBounds.containsPoint(newPoint)){
+				positions.push(newPoint);
+			}
+		}
+	
+		return positions;
+	}
+
+</script>
+</body>
+</html>
+
